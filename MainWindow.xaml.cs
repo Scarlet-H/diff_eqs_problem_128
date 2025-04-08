@@ -60,15 +60,14 @@ namespace Differential
                 timer.Stop();
                 return;
             }
-            double scale = 0.6;
             //Масштабирование координат для отображения на Canvas
             double canvasWidth = GraphCanvas.ActualWidth;
             double canvasHeight = GraphCanvas.ActualHeight;
             // Находим максимальные значения для масштабирования
             double maxA = A.Max();
-            double maxB = B.Max();
+            double maxB = B.Max(); // Убедимся, что maxB не меньше 0
             double maxValue = Math.Max(maxA, maxB);
-            double maxTime = t.Max();
+            double maxTime = t.Last();
 
             double tPoint = t[currentIndex]*canvasWidth/maxTime;
             double APoint = canvasHeight-A[currentIndex]*canvasHeight/maxValue;
@@ -82,32 +81,33 @@ namespace Differential
             List<double> t = new List<double>();
             List<double> A = new List<double>();
             List<double> B = new List<double>();
-            double tEnd = 5;
+            double tEnd = 10;
             double h = 0.01;
             t.Add(0);
             A.Add(A0);
             B.Add(B0);
+
             while (t.Last() <= tEnd)
             {
-                t.Add(t.Last() + h);
+                t.Add(t.Last() + h);  
+
+                double k1_A = h * f1(A.Last(), B.Last(), t.Last());
+                double k1_B = h * f2(A.Last(), B.Last(), t.Last());
+
+                double k2_A = h * f1(A.Last() + k1_A / 2, B.Last() + k1_B / 2, t.Last() + h / 2);
+                double k2_B = h * f2(A.Last() + k1_A / 2, B.Last() + k1_B / 2, t.Last() + h / 2);
+
+                double k3_A = h * f1(A.Last() + k2_A / 2, B.Last() + k2_B / 2, t.Last() + h / 2);
+                double k3_B = h * f2(A.Last() + k2_A / 2, B.Last() + k2_B / 2, t.Last() + h / 2);
+
+                double k4_A = h * f1(A.Last() + k3_A, B.Last() + k3_B, t.Last() + h);
+                double k4_B = h * f2(A.Last() + k3_A, B.Last() + k3_B, t.Last() + h);
+
+                A.Add(A.Last() + (k1_A + 2 * k2_A + 2 * k3_A + k4_A) / 6);
+                B.Add(B.Last() + (k1_B + 2 * k2_B + 2 * k3_B + k4_B) / 6+addFood(t.Last())); 
             }
-            for (int i = 0; i < t.Count - 1; i++)
-            {
-                double k1_A = h * f1(A[i], B[i], t[i]);
-                double k1_B = h * f2(A[i], B[i], t[i]);
-
-                double k2_A = h * f1(A[i] + k1_A / 2, B[i] + k1_B / 2, t[i] + h / 2);
-                double k2_B = h * f2(A[i] + k1_A / 2, B[i] + k1_B / 2, t[i] + h / 2);
-
-                double k3_A = h * f1(A[i] + k2_A / 2, B[i] + k2_B / 2, t[i] + h / 2);
-                double k3_B = h * f2(A[i] + k2_A / 2, B[i] + k2_B / 2, t[i] + h / 2);
-
-                double k4_A = h * f1(A[i] + k3_A, B[i] + k3_B, t[i] + h);
-                double k4_B = h * f2(A[i] + k3_A, B[i] + k3_B, t[i] + h);
-
-                A.Add(A[i] + (k1_A + 2 * k2_A + 2 * k3_A + k4_A) / 6);
-                B.Add(B[i] + (k1_B + 2 * k2_B + 2 * k3_B + k4_B) / 6);
-            }
+            //TODO: if |A|<10^-5 => A=0, 
+            //TODO: dynamic rungekutta
             return (t, A, B);
         }
         private double f1(double A, double B, double t)
@@ -117,6 +117,19 @@ namespace Differential
         private double f2(double A, double B, double t)
         {
             return -k1 * A * t;
+        }
+        private double addFood(double t)
+        {
+            double period = 1.0;  // Период подачи еды (каждые 0.5 секунд)
+            double duration = 0.1; // Длительность подачи еды (1 секунда)
+            double strength = 5.0; // Сила подачи еды
+
+            // Проверяем, если текущее время в пределах 1 секунды после каждого 5-секундного интервала
+            if (t % period < duration)  // Подаем еду в течение 1 секунды
+            {
+                return strength;    // Подача еды
+            }
+            return 0;
         }
         private void DrawAxes()
         {
@@ -142,8 +155,8 @@ namespace Differential
             };
             GraphCanvas.Children.Add(xAxis);
             GraphCanvas.Children.Add(yAxis);
-            double x1Position = 1 * (width / t.Last()); // Позиция для x=1
-            if (x1Position <= width) // Проверяем, чтобы не выходило за границы
+            double x1Position = (width / t.Last()); // Позиция для x=1
+            if (x1Position>=0 && x1Position <= width) // Проверяем, чтобы не выходило за границы
             {
                 // Линия метки
                 Line xTick = new Line
@@ -157,8 +170,8 @@ namespace Differential
                 };
                 GraphCanvas.Children.Add(xTick);
             }
-            double y1Position = height - 1 * (height / Math.Max(A.Max(), B.Max())); // Позиция для y=1
-            if (y1Position >= 0) // Проверяем, чтобы не выходило за границы
+            double y1Position = height - height / Math.Max(A.Max(),B.Max()); // Позиция для y=1
+            if (y1Position >= 0 && y1Position <= height) // Проверяем, чтобы не выходило за границы
             {
                 // Линия метки
                 Line yTick = new Line
