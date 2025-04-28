@@ -15,11 +15,11 @@ namespace Differential
 {
     public partial class MainWindow : Window
     {
-        double A0, B0, k, k1;
-        private List<double> t=new(), A=new(), B=new();
-        Polyline ALine=new(),BLine=new();
-        private DispatcherTimer timer=new();
-        private int currentIndex=0;
+        double A0, B0, C0, kA, kCA, muA, kB, kC, muC, kh;
+        private List<double> t = new(), A = new(), B = new(), C = new();
+        Polyline ALine = new(), BLine = new(), CLine = new();
+        private DispatcherTimer timer = new();
+        private int currentIndex = 0;
         public MainWindow()
         {
             InitializeComponent();
@@ -31,15 +31,23 @@ namespace Differential
             {
                 A0 = double.Parse(A0_Box.Text);
                 B0 = double.Parse(B0_Box.Text);
-                k = double.Parse(k_Box.Text);
-                k1 = double.Parse(k1_Box.Text);
-                (t,A,B)=Solve();
+                C0 = double.Parse(C0_Box.Text);
+                kA = double.Parse(kA_Box.Text);
+                kCA = double.Parse(kCA_Box.Text);
+                muA = double.Parse(muA_Box.Text);
+                kB = double.Parse(kB_Box.Text);
+                kC = double.Parse(kC_Box.Text);
+                muC = double.Parse(muC_Box.Text);
+                kh = double.Parse(kh_Box.Text);
+                (t, A, B, C) = Solve();
                 GraphCanvas.Children.Clear();
                 DrawAxes();
                 ALine = new Polyline { Stroke = Brushes.Blue, StrokeThickness = 3 };
                 BLine = new Polyline { Stroke = Brushes.Green, StrokeThickness = 3 };
+                CLine = new Polyline { Stroke = Brushes.Red, StrokeThickness = 3 };
                 GraphCanvas.Children.Add(ALine);
                 GraphCanvas.Children.Add(BLine);
+                GraphCanvas.Children.Add(CLine);
                 StartAnimation();
             }
             catch (Exception)
@@ -49,7 +57,7 @@ namespace Differential
         }
         private void StartAnimation()
         {
-            timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+            timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1) };
             timer.Tick += DrawGraph;
             timer.Start();
         }
@@ -60,90 +68,94 @@ namespace Differential
                 timer.Stop();
                 return;
             }
-            //Масштабирование координат для отображения на Canvas
             double canvasWidth = GraphCanvas.ActualWidth;
             double canvasHeight = GraphCanvas.ActualHeight;
-            // Находим максимальные значения для масштабирования
             double maxA = A.Max();
-            double maxB = B.Max(); // Убедимся, что maxB не меньше 0
-            double maxValue = Math.Max(maxA, maxB);
+            double maxB = B.Max(); 
+            double maxC = C.Max();
+            double maxValue = Math.Max(Math.Max(maxA, maxB), maxC);
             double maxTime = t.Last();
 
-            double tPoint = t[currentIndex]*canvasWidth/maxTime;
-            double APoint = canvasHeight-A[currentIndex]*canvasHeight/maxValue;
-            double BPoint = canvasHeight-B[currentIndex]*canvasHeight/maxValue;
+            double tPoint = t[currentIndex] * canvasWidth / maxTime;
+            double APoint = canvasHeight - A[currentIndex] * canvasHeight / maxValue;
+            double BPoint = canvasHeight - B[currentIndex] * canvasHeight / maxValue;
+            double CPoint = canvasHeight - C[currentIndex] * canvasHeight / maxValue;
             ALine.Points.Add(new Point(tPoint, APoint));
             BLine.Points.Add(new Point(tPoint, BPoint));
+            CLine.Points.Add(new Point(tPoint, CPoint));
             currentIndex++;
         }
-        private (List<double>, List<double>, List<double>) Solve()
+        private (List<double>, List<double>, List<double>, List<double>) Solve()
         {
             List<double> t = new List<double>();
             List<double> A = new List<double>();
             List<double> B = new List<double>();
-            double tEnd = 10;
+            List<double> C = new List<double>();
+            double tEnd = 50;
             double h = 0.01;
             t.Add(0);
             A.Add(A0);
             B.Add(B0);
-
+            C.Add(C0);
             while (t.Last() <= tEnd)
             {
-                t.Add(t.Last() + h);  
+                t.Add(t.Last() + h);
 
-                double k1_A = h * f1(A.Last(), B.Last(), t.Last());
-                double k1_B = h * f2(A.Last(), B.Last(), t.Last());
+                double k1_A = h * f1(A.Last(), B.Last(), C.Last(), t.Last());
+                double k1_B = h * f2(A.Last(), B.Last(), C.Last(), t.Last());
+                double k1_C = h * f3(A.Last(), B.Last(), C.Last(), t.Last());
 
-                double k2_A = h * f1(A.Last() + k1_A / 2, B.Last() + k1_B / 2, t.Last() + h / 2);
-                double k2_B = h * f2(A.Last() + k1_A / 2, B.Last() + k1_B / 2, t.Last() + h / 2);
+                double k2_A = Math.Round(h * f1(A.Last() + k1_A / 2.0, B.Last() + k1_B / 2.0, C.Last() + k1_C / 2.0, t.Last() + h / 2.0), 4);
+                double k2_B = Math.Round(h * f2(A.Last() + k1_A / 2.0, B.Last() + k1_B / 2.0, C.Last() + k1_C / 2.0, t.Last() + h / 2.0), 4);
+                double k2_C = Math.Round(h * f3(A.Last() + k1_A / 2.0, B.Last() + k1_B / 2.0, C.Last() + k1_C / 2.0, t.Last() + h / 2.0), 4);
 
-                double k3_A = h * f1(A.Last() + k2_A / 2, B.Last() + k2_B / 2, t.Last() + h / 2);
-                double k3_B = h * f2(A.Last() + k2_A / 2, B.Last() + k2_B / 2, t.Last() + h / 2);
+                double k3_A = Math.Round(h * f1(A.Last() + k2_A / 2.0, B.Last() + k2_B / 2.0,C.Last()+k2_C/2.0, t.Last() + h / 2.0), 4);
+                double k3_B = Math.Round(h * f2(A.Last() + k2_A / 2.0, B.Last() + k2_B / 2.0, C.Last() + k2_C / 2.0, t.Last() + h / 2.0), 4);
+                double k3_C = Math.Round(h * f3(A.Last() + k2_A / 2.0, B.Last() + k2_B / 2.0, C.Last() + k2_C / 2.0, t.Last() + h / 2.0), 4);
 
-                double k4_A = h * f1(A.Last() + k3_A, B.Last() + k3_B, t.Last() + h);
-                double k4_B = h * f2(A.Last() + k3_A, B.Last() + k3_B, t.Last() + h);
+                double k4_A = Math.Round(h * f1(A.Last() + k3_A, B.Last() + k3_B,C.Last()+k3_C, t.Last() + h), 4);
+                double k4_B = Math.Round(h * f2(A.Last() + k3_A, B.Last() + k3_B, C.Last() + k3_C, t.Last() + h), 4);
+                double k4_C = Math.Round(h * f3(A.Last() + k3_A, B.Last() + k3_B, C.Last() + k3_C, t.Last() + h), 4);
 
-                A.Add(A.Last() + (k1_A + 2 * k2_A + 2 * k3_A + k4_A) / 6);
-                if (Math.Abs(A.Last()) < 0.00001)
-                {
-                    A.RemoveAt(A.Count - 1);
-                    A.Add(0);
-                }
+                A.Add(A.Last() + (k1_A + 2.0 * k2_A + 2.0 * k3_A + k4_A) / 6.0);
+                B.Add(B.Last() + (k1_B + 2.0 * k2_B + 2.0 * k3_B + k4_B) / 6.0);
+                C.Add(C.Last() + (k1_C + 2.0 * k2_C + 2.0 * k3_C + k4_C) / 6.0);
 
-                B.Add(B.Last() + (k1_B + 2 * k2_B + 2 * k3_B + k4_B) / 6 + addFood(t.Last()));
-                if (Math.Abs(B.Last()) < 0.00001 || B.Last() < 0)
+                if (B.Last() < 0.00001)
                 {
                     B.RemoveAt(A.Count - 1);
                     B.Add(0);
                 }
             }
-            //TODO: if |A|<10^-5 => A=0, 
-            //TODO: dynamic rungekutta
-            return (t, A, B);
+            return (t, A, B, C);
         }
-        private double f1(double A, double B, double t)
+        private double f1(double A, double B, double C, double t)
         {
-            return k * A * B;
+            return kA * A * B - kCA * A * C - muA * A;
         }
-       private double f2(double A, double B, double t)
+        private double f2(double A, double B, double C, double t)
         {
-            return -k1 * A;
+            return -kB * A * t + addFood(t);
         }
-       private static double addFood(double t)
+        private double f3(double A, double B, double C, double t)
         {
-            double period = 50.0;  // Период подачи еды (каждые 10 секунд)
-            double duration = 0.1; // Длительность подачи еды
-            double strength = 1.0; // Сила подачи еды
-            if (t == 0)
-            {
+            return kC * A * C - muC * C - kh * C * C;
+        }
+        private static double addFood(double t)
+        {
+            double period = 10.0;   // Период подачи еды
+            double duration =1;  // Длительность подачи еды
+            double strength = t;  // Сила подачи еды
+            if (t <= 0)
                 return 0;
-            }
-            if (t % period < duration)
+            double timeInPeriod = t % period; 
+            if (timeInPeriod > 0 && timeInPeriod < duration)
             {
                 return strength;
             }
             return 0;
         }
+
         private void DrawAxes()
         {
             double height = GraphCanvas.ActualHeight;
@@ -168,10 +180,9 @@ namespace Differential
             };
             GraphCanvas.Children.Add(xAxis);
             GraphCanvas.Children.Add(yAxis);
-            double x1Position = (width / t.Last()); // Позиция для x=1
-            if (x1Position>=0 && x1Position <= width) // Проверяем, чтобы не выходило за границы
+            double x1Position = (width / t.Last());
+            if (x1Position >= 0 && x1Position <= width) 
             {
-                // Линия метки
                 Line xTick = new Line
                 {
                     X1 = x1Position,
@@ -183,10 +194,9 @@ namespace Differential
                 };
                 GraphCanvas.Children.Add(xTick);
             }
-            double y1Position = height - height / Math.Max(A.Max(),B.Max()); // Позиция для y=1
-            if (y1Position >= 0 && y1Position <= height) // Проверяем, чтобы не выходило за границы
+            double y1Position = height - height / Math.Max(A.Max(), B.Max()); 
+            if (y1Position >= 0 && y1Position <= height)
             {
-                // Линия метки
                 Line yTick = new Line
                 {
                     X1 = 0,
@@ -198,8 +208,6 @@ namespace Differential
                 };
                 GraphCanvas.Children.Add(yTick);
             }
-
-
         }
     }
 }
